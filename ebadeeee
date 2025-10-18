@@ -1,0 +1,162 @@
+-- ⏳ Expiry Enforcement (injected from validator)
+if not expiry then
+    error("❌ No expiry injected. Script halted.")
+end
+
+spawn(function()
+    while os.time() <= expiry do wait(1) end
+    print("🛑 Key expired. Script forcibly stopped.")
+end)
+
+local player = game.Players.LocalPlayer
+
+local function startScript()
+    -- Wait for the game objects to be available
+    local playersFolder = game.Workspace:WaitForChild("Game"):WaitForChild("Players")
+    local spawnsFolder = game.Workspace:WaitForChild("Game"):WaitForChild("Map"):WaitForChild("Parts"):WaitForChild("Spawns")
+
+    local character = player.Character or player.CharacterAdded:Wait()
+
+    -- Variable to keep track of the teleport state
+    local teleportEnabled = true
+    local debounce = false
+
+    -- Function to create a floating label
+    local function createFloatingLabel(entity, distance)
+        local billboardGui = entity:FindFirstChild("DistanceLabel") or Instance.new("BillboardGui")
+        billboardGui.Name = "DistanceLabel"
+        billboardGui.Adornee = entity.PrimaryPart
+        billboardGui.Size = UDim2.new(5, 0, 2, 0)
+        billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+        billboardGui.AlwaysOnTop = true
+
+        local textLabel = billboardGui:FindFirstChild("TextLabel") or Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.Text = entity.Name .. " - Distance: " .. math.floor(distance) .. " studs"
+        textLabel.TextColor3 = Color3.new(1, 0, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextScaled = true
+        textLabel.Parent = billboardGui
+
+        billboardGui.Parent = entity.PrimaryPart
+    end
+
+    -- Function to remove old labels
+    local function removeOldLabels()
+        for _, entity in pairs(playersFolder:GetChildren()) do
+            if entity:FindFirstChild("DistanceLabel") then
+                entity.DistanceLabel:Destroy()
+            end
+        end
+    end
+
+    -- Function to check if an entity is a Nextbot
+    local function isNextbot(entity)
+        return not entity:FindFirstChildOfClass("LocalScript") and entity ~= character
+    end
+
+    -- Function to count Nextbots near a position
+    local function countNextbotsNearPosition(position, range)
+        local count = 0
+        for _, entity in pairs(playersFolder:GetChildren()) do
+            if isNextbot(entity) and entity.PrimaryPart then
+                local distance = (position - entity.PrimaryPart.Position).magnitude
+                if distance <= range then
+                    count = count + 1
+                end
+            end
+        end
+        return count
+    end
+
+    -- Function to find the spawn with the least number of Nextbots near it
+    local function findBestSpawn()
+        local bestSpawn = nil
+        local leastNextbots = math.huge
+        local range = 30
+
+        for _, spawn in pairs(spawnsFolder:GetChildren()) do
+            if spawn:IsA("Part") then
+                local nextbotCount = countNextbotsNearPosition(spawn.Position, range)
+                if nextbotCount < leastNextbots then
+                    leastNextbots = nextbotCount
+                    bestSpawn = spawn
+                end
+            end
+        end
+
+        return bestSpawn
+    end
+
+    -- Function to check the distance to Nextbots and teleport if necessary
+    local function checkNextbotsDistance()
+        if character and character.PrimaryPart and teleportEnabled and not debounce then
+            local nextbotsNear = false
+
+            for _, entity in pairs(playersFolder:GetChildren()) do
+                if isNextbot(entity) and entity.PrimaryPart then
+                    local distance = (character.PrimaryPart.Position - entity.PrimaryPart.Position).magnitude
+
+                    if distance <= 50 then
+                        createFloatingLabel(entity, distance)
+                    end
+
+                    if distance <= 30 then
+                        nextbotsNear = true
+                    end
+                end
+            end
+
+            if nextbotsNear then
+                debounce = true
+                local bestSpawn = findBestSpawn()
+                if bestSpawn then
+                    character:SetPrimaryPartCFrame(CFrame.new(bestSpawn.Position))
+                    print("Teleported to the best spawn location!")
+                else
+                    print("No suitable spawn location found!")
+                end
+                wait(1)
+                debounce = false
+            end
+        end
+    end
+
+    -- Continuously check the distance to Nextbots with reduced interval
+    while character.Parent do
+        if os.time() > expiry then
+            print("🛑 Key expired. Respawn loop halted.")
+            break
+        end
+        checkNextbotsDistance()
+        removeOldLabels()
+        wait(0.5)
+    end
+end
+
+-- Event listener for player character respawn
+local function onCharacterAdded(newCharacter)
+    startScript()
+end
+
+-- Connect the event listeners
+player.CharacterAdded:Connect(onCharacterAdded)
+
+-- Initial check in case the character is already loaded
+if player.Character then
+    startScript()
+end
+
+-- Function to handle map reset
+local function onMapReset()
+    if player.Character then
+        startScript()
+    end
+end
+
+-- Connect event listener for map reset
+game.Workspace.ChildRemoved:Connect(function(child)
+    if child.Name == "Game" then
+        onMapReset()
+    end
+end)
