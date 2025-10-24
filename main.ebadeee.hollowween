@@ -1,0 +1,255 @@
+-- LocalScript
+
+-- Section A
+local function A()
+    print("Running Script A")
+    local player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+-- === GUI Setup ===
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AvoidanceControl"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = CoreGui -- persistent, game can't remove
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 220, 0, 120)
+frame.Position = UDim2.new(0.5, -110, 0.1, 0)
+frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 25)
+title.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+title.Text = "Avoidance Settings"
+title.TextColor3 = Color3.new(1,1,1)
+title.Parent = frame
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0.5, -5, 0, 30)
+toggleBtn.Position = UDim2.new(0, 5, 0, 35)
+toggleBtn.Text = "Avoid Players: ON"
+toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+toggleBtn.TextColor3 = Color3.new(1,1,1)
+toggleBtn.Parent = frame
+
+local exitBtn = Instance.new("TextButton")
+exitBtn.Size = UDim2.new(0.5, -5, 0, 30)
+exitBtn.Position = UDim2.new(0.5, 0, 0, 35)
+exitBtn.Text = "Exit"
+exitBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+exitBtn.TextColor3 = Color3.new(1,1,1)
+exitBtn.Parent = frame
+
+-- Toggle state
+local avoidPlayers = true
+toggleBtn.MouseButton1Click:Connect(function()
+    avoidPlayers = not avoidPlayers
+    toggleBtn.Text = "Avoid Players: " .. (avoidPlayers and "ON" or "OFF")
+end)
+
+-- Exit button
+exitBtn.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+-- === Main Script ===
+local function startScript()
+    local playersFolder = workspace:WaitForChild("Game"):WaitForChild("Players")
+    local spawnsFolder = workspace:WaitForChild("Game"):WaitForChild("Map"):WaitForChild("Parts"):WaitForChild("Spawns")
+    local character = player.Character or player.CharacterAdded:Wait()
+
+    local teleportEnabled = true
+    local debounce = false
+
+    -- Floating label creation
+    local function createFloatingLabel(entity, distance)
+        local billboardGui = entity:FindFirstChild("DistanceLabel") or Instance.new("BillboardGui")
+        billboardGui.Name = "DistanceLabel"
+        billboardGui.Adornee = entity.PrimaryPart
+        billboardGui.Size = UDim2.new(5, 0, 2, 0)
+        billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+        billboardGui.AlwaysOnTop = true
+
+        local textLabel = billboardGui:FindFirstChild("TextLabel") or Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.Text = entity.Name .. " - Distance: " .. math.floor(distance) .. " studs"
+        textLabel.TextColor3 = Color3.new(1, 0, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextScaled = true
+        textLabel.Parent = billboardGui
+
+        billboardGui.Parent = entity.PrimaryPart
+    end
+
+    -- Remove old labels
+    local function removeOldLabels()
+        for _, entity in pairs(playersFolder:GetChildren()) do
+            if entity:FindFirstChild("DistanceLabel") then
+                entity.DistanceLabel:Destroy()
+            end
+        end
+    end
+
+    -- Entity checks
+    local function isNextbot(entity)
+        return not entity:FindFirstChildOfClass("LocalScript") and entity ~= character
+    end
+
+    local function isOtherPlayer(entity)
+        return entity ~= character and entity:FindFirstChildOfClass("LocalScript")
+    end
+
+    -- Count Nextbots near a position
+    local function countNextbotsNearPosition(position, range)
+        local count = 0
+        for _, entity in pairs(playersFolder:GetChildren()) do
+            if isNextbot(entity) and entity.PrimaryPart then
+                if (position - entity.PrimaryPart.Position).Magnitude <= range then
+                    count += 1
+                end
+            end
+        end
+        return count
+    end
+
+    -- Find best spawn
+    local function findBestSpawn()
+        local bestSpawn, leastNextbots = nil, math.huge
+        for _, spawn in pairs(spawnsFolder:GetChildren()) do
+            if spawn:IsA("Part") then
+                local count = countNextbotsNearPosition(spawn.Position, 30)
+                if count < leastNextbots then
+                    leastNextbots = count
+                    bestSpawn = spawn
+                end
+            end
+        end
+        return bestSpawn
+    end
+
+    -- Check threats
+    local function checkThreats()
+        if character and character.PrimaryPart and teleportEnabled and not debounce then
+            local danger = false
+            for _, entity in pairs(playersFolder:GetChildren()) do
+                if entity.PrimaryPart then
+                    local dist = (character.PrimaryPart.Position - entity.PrimaryPart.Position).Magnitude
+
+                    -- Show labels within 50 studs
+                    if dist <= 50 then
+                        createFloatingLabel(entity, dist)
+                    end
+
+                    -- Nextbot danger
+                    if isNextbot(entity) and dist <= 30 then
+                        danger = true
+                    end
+                    -- Player danger
+                    if avoidPlayers and isOtherPlayer(entity) and dist <= 10 then
+                        danger = true
+                    end
+                end
+            end
+
+            if danger then
+                debounce = true
+                local bestSpawn = findBestSpawn()
+                if bestSpawn then
+                    character:SetPrimaryPartCFrame(CFrame.new(bestSpawn.Position))
+                    print("Teleported to the best spawn location!")
+                else
+                    print("No suitable spawn location found!")
+                end
+                task.wait(1)
+                debounce = false
+            end
+        end
+    end
+
+    -- Run every 0.1s
+    RunService.Heartbeat:Connect(function(step)
+        checkThreats()
+        removeOldLabels()
+    end)
+end
+
+-- Respawn handling
+player.CharacterAdded:Connect(startScript)
+if player.Character then startScript() end
+
+-- Map reset handling
+workspace.ChildRemoved:Connect(function(child)
+    if child.Name == "Game" then
+        if player.Character then
+            startScript()
+        end
+    end
+end)
+end
+
+-- Section B
+local function B()
+    print("Running Script B")
+    local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local ticketsFolder = workspace:WaitForChild("Game"):WaitForChild("Effects"):WaitForChild("Tickets")
+local player = Players.LocalPlayer
+
+-- Function to teleport to a random ticket
+local function teleportToRandomTicket()
+    local character = player.Character or player.CharacterAdded:Wait()
+    local hrp = character:WaitForChild("HumanoidRootPart")
+
+    local tickets = ticketsFolder:GetChildren()
+    if #tickets == 0 then
+        warn("No tickets found in the folder!")
+        return
+    end
+
+    local randomIndex = math.random(1, #tickets)
+    local randomTicket = tickets[randomIndex]
+
+    local targetCFrame
+
+    if randomTicket:IsA("BasePart") then
+        targetCFrame = randomTicket.CFrame
+    elseif randomTicket:IsA("Model") then
+        if randomTicket.PrimaryPart then
+            targetCFrame = randomTicket.PrimaryPart.CFrame
+        else
+            local firstPart = randomTicket:FindFirstChildWhichIsA("BasePart")
+            if firstPart then
+                targetCFrame = firstPart.CFrame
+            end
+        end
+    end
+
+    if targetCFrame then
+        hrp.CFrame = targetCFrame + Vector3.new(0, 5, 0) -- spawn slightly above
+        print("Teleported to:", randomTicket.Name)
+    else
+        warn("Could not find a valid position for:", randomTicket.Name)
+    end
+end
+
+-- Listen for H key press
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end -- ignore if typing in chat, etc.
+    if input.KeyCode == Enum.KeyCode.H then
+        teleportToRandomTicket()
+    end
+end)
+end
+
+-- Launch both concurrently
+task.spawn(A)
+task.spawn(B)
+
+-- If you want them sequential instead of parallel:
+-- A()
+-- B()
