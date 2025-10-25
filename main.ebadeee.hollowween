@@ -44,11 +44,41 @@ exitBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
 exitBtn.TextColor3 = Color3.new(1,1,1)
 exitBtn.Parent = frame
 
+local espPlayersBtn = Instance.new("TextButton")
+espPlayersBtn.Size = UDim2.new(0.5, -5, 0, 30)
+espPlayersBtn.Position = UDim2.new(0, 5, 0, 70)
+espPlayersBtn.Text = "ESP Players: ON"
+espPlayersBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+espPlayersBtn.TextColor3 = Color3.new(1,1,1)
+espPlayersBtn.Parent = frame
+
+local espNextbotsBtn = Instance.new("TextButton")
+espNextbotsBtn.Size = UDim2.new(0.5, -5, 0, 30)
+espNextbotsBtn.Position = UDim2.new(0.5, 0, 0, 70)
+espNextbotsBtn.Text = "ESP Nextbots: ON"
+espNextbotsBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+espNextbotsBtn.TextColor3 = Color3.new(1,1,1)
+espNextbotsBtn.Parent = frame
+
+
 -- Toggle state
 local avoidPlayers = true
 toggleBtn.MouseButton1Click:Connect(function()
     avoidPlayers = not avoidPlayers
     toggleBtn.Text = "Avoid Players: " .. (avoidPlayers and "ON" or "OFF")
+end)
+
+local espPlayers = true
+local espNextbots = true
+
+espPlayersBtn.MouseButton1Click:Connect(function()
+    espPlayers = not espPlayers
+    espPlayersBtn.Text = "ESP Players: " .. (espPlayers and "ON" or "OFF")
+end)
+
+espNextbotsBtn.MouseButton1Click:Connect(function()
+    espNextbots = not espNextbots
+    espNextbotsBtn.Text = "ESP Nextbots: " .. (espNextbots and "ON" or "OFF")
 end)
 
 -- Exit button
@@ -139,10 +169,15 @@ local function startScript()
                 if entity.PrimaryPart then
                     local dist = (character.PrimaryPart.Position - entity.PrimaryPart.Position).Magnitude
 
-                    -- Show labels within 50 studs
+                    -- Show labels based on ESP settings
                     if dist <= 50 then
+                    if espPlayers and isOtherPlayer(entity) then
+                    createFloatingLabel(entity, dist)
+                    elseif espNextbots and isNextbot(entity) then
                         createFloatingLabel(entity, dist)
                     end
+                end
+
 
                     -- Nextbot danger
                     if isNextbot(entity) and dist <= 30 then
