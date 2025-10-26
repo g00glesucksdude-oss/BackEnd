@@ -18,7 +18,6 @@ local function createBaseplate(position)
 	baseplate.CanCollide = true
 	baseplate.Locked = true
 	baseplate.Parent = workspace
-	Debris:AddItem(baseplate, 10)
 end
 
 local function setup(char)
