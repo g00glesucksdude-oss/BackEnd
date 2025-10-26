@@ -6,10 +6,25 @@ local CoreGui = game:GetService("CoreGui")
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AvoidanceControl"
 screenGui.ResetOnSpawn = false
-screenGui.Parent = CoreGui -- persistent, game can't remove
+screenGui.Parent = CoreGui
+
+-- Protection: prevent removal except via Exit button
+local ancestryConn, destroyingConn
+ancestryConn = screenGui.AncestryChanged:Connect(function(_, parent)
+    if not parent then
+        screenGui.Parent = CoreGui
+    end
+end)
+destroyingConn = screenGui.Destroying:Connect(function()
+    task.defer(function()
+        if not screenGui.Parent then
+            screenGui.Parent = CoreGui
+        end
+    end)
+end)
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 220, 0, 120)
+frame.Size = UDim2.new(0, 220, 0, 150)
 frame.Position = UDim2.new(0.5, -110, 0.1, 0)
 frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 frame.Active = true
@@ -23,21 +38,22 @@ title.Text = "Avoidance Settings"
 title.TextColor3 = Color3.new(1,1,1)
 title.Parent = frame
 
-local toggleBtn = Instance.new("TextButton")
-toggleBtn.Size = UDim2.new(0.5, -5, 0, 30)
-toggleBtn.Position = UDim2.new(0, 5, 0, 35)
-toggleBtn.Text = "Avoid Players: ON"
-toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-toggleBtn.TextColor3 = Color3.new(1,1,1)
-toggleBtn.Parent = frame
+-- Buttons
+local avoidPlayersBtn = Instance.new("TextButton")
+avoidPlayersBtn.Size = UDim2.new(0.5, -5, 0, 30)
+avoidPlayersBtn.Position = UDim2.new(0, 5, 0, 35)
+avoidPlayersBtn.Text = "Avoid Players: ON"
+avoidPlayersBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+avoidPlayersBtn.TextColor3 = Color3.new(1,1,1)
+avoidPlayersBtn.Parent = frame
 
-local exitBtn = Instance.new("TextButton")
-exitBtn.Size = UDim2.new(0.5, -5, 0, 30)
-exitBtn.Position = UDim2.new(0.5, 0, 0, 35)
-exitBtn.Text = "Exit"
-exitBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
-exitBtn.TextColor3 = Color3.new(1,1,1)
-exitBtn.Parent = frame
+local avoidNextbotsBtn = Instance.new("TextButton")
+avoidNextbotsBtn.Size = UDim2.new(0.5, -5, 0, 30)
+avoidNextbotsBtn.Position = UDim2.new(0.5, 0, 0, 35)
+avoidNextbotsBtn.Text = "Avoid Nextbots: ON"
+avoidNextbotsBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+avoidNextbotsBtn.TextColor3 = Color3.new(1,1,1)
+avoidNextbotsBtn.Parent = frame
 
 local espPlayersBtn = Instance.new("TextButton")
 espPlayersBtn.Size = UDim2.new(0.5, -5, 0, 30)
@@ -55,16 +71,29 @@ espNextbotsBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 espNextbotsBtn.TextColor3 = Color3.new(1,1,1)
 espNextbotsBtn.Parent = frame
 
+local exitBtn = Instance.new("TextButton")
+exitBtn.Size = UDim2.new(1, -10, 0, 30)
+exitBtn.Position = UDim2.new(0, 5, 0, 110)
+exitBtn.Text = "Exit"
+exitBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+exitBtn.TextColor3 = Color3.new(1,1,1)
+exitBtn.Parent = frame
 
--- Toggle state
+-- === Toggle states ===
 local avoidPlayers = true
-toggleBtn.MouseButton1Click:Connect(function()
-    avoidPlayers = not avoidPlayers
-    toggleBtn.Text = "Avoid Players: " .. (avoidPlayers and "ON" or "OFF")
-end)
-
+local avoidNextbots = true
 local espPlayers = true
 local espNextbots = true
+
+avoidPlayersBtn.MouseButton1Click:Connect(function()
+    avoidPlayers = not avoidPlayers
+    avoidPlayersBtn.Text = "Avoid Players: " .. (avoidPlayers and "ON" or "OFF")
+end)
+
+avoidNextbotsBtn.MouseButton1Click:Connect(function()
+    avoidNextbots = not avoidNextbots
+    avoidNextbotsBtn.Text = "Avoid Nextbots: " .. (avoidNextbots and "ON" or "OFF")
+end)
 
 espPlayersBtn.MouseButton1Click:Connect(function()
     espPlayers = not espPlayers
@@ -76,21 +105,27 @@ espNextbotsBtn.MouseButton1Click:Connect(function()
     espNextbotsBtn.Text = "ESP Nextbots: " .. (espNextbots and "ON" or "OFF")
 end)
 
--- Exit button
 exitBtn.MouseButton1Click:Connect(function()
+    -- Disconnect protection before destroying
+    if ancestryConn then ancestryConn:Disconnect() end
+    if destroyingConn then destroyingConn:Disconnect() end
     screenGui:Destroy()
 end)
+
+-- === Detection Ranges ===
+local PLAYER_DETECTION_RANGE = 15
+local NEXTBOT_DETECTION_RANGE = 30
 
 -- === Main Script ===
 local function startScript()
     local playersFolder = workspace:WaitForChild("Game"):WaitForChild("Players")
-    local spawnsFolder = workspace:WaitForChild("Game"):WaitForChild("Map"):WaitForChild("Parts"):WaitForChild("Spawns")
+    local mapFolder = workspace:WaitForChild("Game"):WaitForChild("Map")
+    local spawnsFolder = mapFolder:WaitForChild("Parts"):WaitForChild("Spawns")
+    local itemSpawnsFolder = mapFolder:WaitForChild("ItemSpawns")
     local character = player.Character or player.CharacterAdded:Wait()
 
-    local teleportEnabled = true
     local debounce = false
 
-    -- Floating label creation
     local function createFloatingLabel(entity, distance)
         local billboardGui = entity:FindFirstChild("DistanceLabel") or Instance.new("BillboardGui")
         billboardGui.Name = "DistanceLabel"
@@ -110,7 +145,6 @@ local function startScript()
         billboardGui.Parent = entity.PrimaryPart
     end
 
-    -- Remove old labels
     local function removeOldLabels()
         for _, entity in pairs(playersFolder:GetChildren()) do
             if entity:FindFirstChild("DistanceLabel") then
@@ -119,7 +153,6 @@ local function startScript()
         end
     end
 
-    -- Entity checks
     local function isNextbot(entity)
         return not entity:FindFirstChildOfClass("LocalScript") and entity ~= character
     end
@@ -128,7 +161,6 @@ local function startScript()
         return entity ~= character and entity:FindFirstChildOfClass("LocalScript")
     end
 
-    -- Count Nextbots near a position
     local function countNextbotsNearPosition(position, range)
         local count = 0
         for _, entity in pairs(playersFolder:GetChildren()) do
@@ -141,56 +173,87 @@ local function startScript()
         return count
     end
 
-    -- Find best spawn
     local function findBestSpawn()
         local bestSpawn, leastNextbots = nil, math.huge
+        local candidateSpawns = {}
+
         for _, spawn in pairs(spawnsFolder:GetChildren()) do
             if spawn:IsA("Part") then
-                local count = countNextbotsNearPosition(spawn.Position, 30)
-                if count < leastNextbots then
-                    leastNextbots = count
-                    bestSpawn = spawn
-                end
+                table.insert(candidateSpawns, spawn)
+            end
+        end
+        for _, spawn in pairs(itemSpawnsFolder:GetChildren()) do
+            if spawn:IsA("Part") then
+                table.insert(candidateSpawns, spawn)
+            end
+        end
+
+        for _, spawn in pairs(candidateSpawns) do
+            local count = countNextbotsNearPosition(spawn.Position, NEXTBOT_DETECTION_RANGE)
+            if count < leastNextbots then
+                leastNextbots = count
+                bestSpawn = spawn
             end
         end
         return bestSpawn
     end
 
-    -- Check threats
+    local function avoidNextbotLogic()
+        for _, entity in pairs(playersFolder:GetChildren()) do
+            if avoidNextbots and isNextbot(entity) and entity.PrimaryPart then
+                local dist = (character.PrimaryPart.Position - entity.PrimaryPart.Position).Magnitude
+                if dist <= NEXTBOT_DETECTION_RANGE then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    local function avoidPlayerLogic()
+        for _, entity in pairs(playersFolder:GetChildren()) do
+            if avoidPlayers and isOtherPlayer(entity) and entity.PrimaryPart then
+                local dist = (character.PrimaryPart.Position - entity.PrimaryPart.Position).Magnitude
+                if dist <= PLAYER_DETECTION_RANGE then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
     local function checkThreats()
-        if character and character.PrimaryPart and teleportEnabled and not debounce then
-            local danger = false
+        if character and character.PrimaryPart and not debounce then
+            -- ESP rendering
             for _, entity in pairs(playersFolder:GetChildren()) do
                 if entity.PrimaryPart then
                     local dist = (character.PrimaryPart.Position - entity.PrimaryPart.Position).Magnitude
-
-                    -- Show labels based on ESP settings
                     if dist <= 50 then
-                    if espPlayers and isOtherPlayer(entity) then
-                    createFloatingLabel(entity, dist)
-                    elseif espNextbots and isNextbot(entity) then
-                        createFloatingLabel(entity, dist)
-                    end
-                end
-
-
-                    -- Nextbot danger
-                    if isNextbot(entity) and dist <= 30 then
-                        danger = true
-                    end
-                    -- Player danger
-                    if avoidPlayers and isOtherPlayer(entity) and dist <= 10 then
-                        danger = true
+                        if espPlayers and isOtherPlayer(entity) then
+                            createFloatingLabel(entity, dist)
+                        elseif espNextbots and isNextbot(entity) then
+                            createFloatingLabel(entity, dist)
+                        end
                     end
                 end
             end
 
-            if danger then
+            -- Separate avoidance checks
+            local dangerNextbot = avoidNextbotLogic()
+            local dangerPlayer = avoidPlayerLogic()
+
+            if dangerNextbot or dangerPlayer then
                 debounce = true
                 local bestSpawn = findBestSpawn()
                 if bestSpawn then
                     character:SetPrimaryPartCFrame(CFrame.new(bestSpawn.Position))
-                    print("Teleported to the best spawn location!")
+                    if dangerNextbot and dangerPlayer then
+                        print("Teleported away from BOTH nextbot and player danger!")
+                    elseif dangerNextbot then
+                        print("Teleported away from nextbot danger!")
+                    elseif dangerPlayer then
+                        print("Teleported away from player danger!")
+                    end
                 else
                     print("No suitable spawn location found!")
                 end
@@ -200,8 +263,8 @@ local function startScript()
         end
     end
 
-    -- Run every 0.1s
-    RunService.Heartbeat:Connect(function(step)
+    -- Run every heartbeat
+    RunService.Heartbeat:Connect(function()
         checkThreats()
         removeOldLabels()
     end)
