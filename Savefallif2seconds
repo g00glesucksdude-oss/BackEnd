@@ -1,13 +1,13 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 
-local fallingTime = 0
 local isFalling = false
-local baseplateSpawned = false
+local fallingTime = 0
 
 -- Function to safely get PrimaryPart
 local function getPrimaryPartSafe(char)
@@ -16,9 +16,6 @@ end
 
 -- Function to create a baseplate
 local function createBaseplate(position)
-    if baseplateSpawned then return end
-    baseplateSpawned = true
-
     local baseplate = Instance.new("Part")
     baseplate.Name = "AutoBaseplate_" .. tostring(math.random(1000, 9999))
     baseplate.Size = Vector3.new(100, 1, 100)
@@ -29,20 +26,14 @@ local function createBaseplate(position)
     baseplate.Locked = true
     baseplate.Parent = workspace
 
-    task.delay(10, function()
-        if baseplate and baseplate.Parent then
-            baseplate:Destroy()
-            baseplateSpawned = false
-        end
-    end)
+    Debris:AddItem(baseplate, 10)
 end
 
--- Monitor falling state
-local function connectFallingLogic(char)
-    local humanoid = char:WaitForChild("Humanoid")
-    fallingTime = 0
+-- Setup falling detection
+local function setupFallingDetection(char)
+    humanoid = char:WaitForChild("Humanoid")
     isFalling = false
-    baseplateSpawned = false
+    fallingTime = 0
 
     humanoid.StateChanged:Connect(function(_, newState)
         if newState == Enum.HumanoidStateType.Freefall then
@@ -67,11 +58,11 @@ local function connectFallingLogic(char)
     end)
 end
 
--- Initial connect
-connectFallingLogic(character)
+-- Initial setup
+setupFallingDetection(character)
 
 -- Reconnect on respawn
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
-    connectFallingLogic(character)
+    setupFallingDetection(character)
 end)
