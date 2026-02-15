@@ -1,0 +1,177 @@
+local player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
+
+-- Variables to track running state
+local currentConnection = nil
+
+local function startScript()
+    -- Clean up previous instance
+    if currentConnection then
+        currentConnection:Disconnect()
+        currentConnection = nil
+    end
+    
+    local playersFolder = game.Workspace:WaitForChild("Game"):WaitForChild("Players")
+    local spawnsFolder = game.Workspace:WaitForChild("Game"):WaitForChild("Map"):WaitForChild("Parts"):WaitForChild("Spawns")
+    local character = player.Character or player.CharacterAdded:Wait()
+    
+    local teleportEnabled = true
+    local debounce = false
+    local lastCheck = 0
+    local CHECK_INTERVAL = 0.5
+
+    local function createOrUpdateLabel(entity, distance)
+        if not entity.PrimaryPart then return end
+        
+        local billboardGui = entity.PrimaryPart:FindFirstChild("DistanceLabel")
+        
+        if not billboardGui then
+            -- Create new label
+            billboardGui = Instance.new("BillboardGui")
+            billboardGui.Name = "DistanceLabel"
+            billboardGui.Size = UDim2.new(5, 0, 2, 0)
+            billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+            billboardGui.AlwaysOnTop = true
+            
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Name = "TextLabel"
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.TextColor3 = Color3.new(1, 0, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.TextScaled = true
+            textLabel.Parent = billboardGui
+            
+            billboardGui.Adornee = entity.PrimaryPart
+            billboardGui.Parent = entity.PrimaryPart
+        end
+        
+        -- Update text (whether new or existing)
+        local textLabel = billboardGui:FindFirstChild("TextLabel")
+        if textLabel then
+            textLabel.Text = entity.Name .. " - Distance: " .. math.floor(distance) .. " studs"
+        end
+    end
+
+    local function cleanupLabelsOutOfRange()
+        -- Only remove labels from entities that are too far away
+        if not character or not character.PrimaryPart then return end
+        
+        for _, entity in pairs(playersFolder:GetChildren()) do
+            if entity.PrimaryPart then
+                local label = entity.PrimaryPart:FindFirstChild("DistanceLabel")
+                if label then
+                    local distance = (character.PrimaryPart.Position - entity.PrimaryPart.Position).magnitude
+                    if distance > 50 then
+                        label:Destroy()
+                    end
+                end
+            end
+        end
+    end
+
+    local function isNextbot(entity)
+        return not entity:FindFirstChildOfClass("LocalScript") and entity ~= character
+    end
+
+    local function countNextbotsNearPosition(position, range)
+        local count = 0
+        for _, entity in pairs(playersFolder:GetChildren()) do
+            if isNextbot(entity) and entity.PrimaryPart then
+                local distance = (position - entity.PrimaryPart.Position).magnitude
+                if distance <= range then
+                    count = count + 1
+                end
+            end
+        end
+        return count
+    end
+
+    local function findBestSpawn()
+        local bestSpawn = nil
+        local leastNextbots = math.huge
+        local range = 30
+
+        for _, spawn in pairs(spawnsFolder:GetChildren()) do
+            if spawn:IsA("Part") then
+                local nextbotCount = countNextbotsNearPosition(spawn.Position, range)
+                if nextbotCount < leastNextbots then
+                    leastNextbots = nextbotCount
+                    bestSpawn = spawn
+                end
+            end
+        end
+        return bestSpawn
+    end
+
+    local function checkNextbotsDistance()
+        if not character or not character.Parent or not character.PrimaryPart then
+            return
+        end
+        
+        if teleportEnabled and not debounce then
+            local nextbotsNear = false
+            
+            for _, entity in pairs(playersFolder:GetChildren()) do
+                if isNextbot(entity) and entity.PrimaryPart then
+                    local distance = (character.PrimaryPart.Position - entity.PrimaryPart.Position).magnitude
+                    
+                    if distance <= 50 then
+                        createOrUpdateLabel(entity, distance)
+                    end
+                    
+                    if distance <= 30 then
+                        nextbotsNear = true
+                    end
+                end
+            end
+
+            if nextbotsNear then
+                debounce = true
+                local bestSpawn = findBestSpawn()
+                if bestSpawn then
+                    character:SetPrimaryPartCFrame(CFrame.new(bestSpawn.Position))
+                    print("Teleported to the best spawn location!")
+                end
+                task.wait(1)
+                debounce = false
+            end
+        end
+    end
+
+    -- Use Heartbeat for game logic (RenderStepped is for rendering)
+    currentConnection = RunService.Heartbeat:Connect(function()
+        local currentTime = tick()
+        if currentTime - lastCheck >= CHECK_INTERVAL then
+            lastCheck = currentTime
+            checkNextbotsDistance()
+            cleanupLabelsOutOfRange()
+        end
+    end)
+    
+    -- Clean up when character dies or is removed
+    local function cleanup()
+        if currentConnection then
+            currentConnection:Disconnect()
+            currentConnection = nil
+        end
+        -- Remove all labels
+        for _, entity in pairs(playersFolder:GetChildren()) do
+            if entity.PrimaryPart then
+                local label = entity.PrimaryPart:FindFirstChild("DistanceLabel")
+                if label then
+                    label:Destroy()
+                end
+            end
+        end
+    end
+    
+    if character:FindFirstChild("Humanoid") then
+        character.Humanoid.Died:Connect(cleanup)
+    end
+end
+
+player.CharacterAdded:Connect(startScript)
+
+if player.Character then
+    startScript()
+end
