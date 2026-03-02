@@ -8,7 +8,7 @@ ScreenGui.Name = "Exunys_V3_Ultimate_Panel"
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.ResetOnSpawn = false
 
--- 2. Main Frame (Bigger)
+-- 2. Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 250, 0, 450)
 MainFrame.Position = UDim2.new(0.5, -125, 0.4, 0)
@@ -54,7 +54,6 @@ UIList.Parent = ContentFrame
 UIList.Padding = UDim.new(0, 5)
 UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Toggle Minimize Logic
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
@@ -124,7 +123,7 @@ local function CreateAdjuster(name, tableRef, key, step, min)
     end)
 end
 
--- 5. All Missing Configs Added Here
+-- 5. Full Configs
 CreateLabel("CHECKS")
 CreateToggle("Wall Check", AimbotData.Settings, "WallCheck")
 CreateToggle("Team Check", AimbotData.Settings, "TeamCheck")
@@ -139,13 +138,29 @@ CreateLabel("FOV SETTINGS")
 CreateToggle("Show FOV", AimbotData.FOVSettings, "Visible")
 CreateToggle("Filled FOV", AimbotData.FOVSettings, "Filled")
 CreateAdjuster("FOV Radius", AimbotData.FOVSettings, "Radius", 5, 0)
-CreateAdjuster("FOV Sides", AimbotData.FOVSettings, "NumSides", 5, 3)
+CreateAdjuster("FOV Sides", AimbotData.FOVSettings, "NumSides", 1, 3)
 CreateAdjuster("FOV Thickness", AimbotData.FOVSettings, "Thickness", 1, 1)
+CreateAdjuster("FOV Transparency", AimbotData.FOVSettings, "Transparency", 0.1, 0)
 
 CreateLabel("VISUALS")
 CreateToggle("Rainbow FOV", AimbotData.FOVSettings, "RainbowColor")
 
--- 6. P Toggle Logic
+-- 6. KILLSWITCH / OFF BUTTON
+CreateLabel("DANGER ZONE")
+local OffBtn = Instance.new("TextButton")
+OffBtn.Size = UDim2.new(0, 220, 0, 40)
+OffBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+OffBtn.Text = "OFF AIMBOT (EXIT)"
+OffBtn.TextColor3 = Color3.new(1, 1, 1)
+OffBtn.Font = Enum.Font.SourceSansBold
+OffBtn.Parent = ContentFrame
+
+OffBtn.MouseButton1Click:Connect(function()
+    AimbotData:Exit() -- Built-in Exunys cleanup
+    ScreenGui:Destroy()
+end)
+
+-- 7. P Toggle Logic
 game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
     if not processed and input.KeyCode == Enum.KeyCode.P then
         ScreenGui.Enabled = not ScreenGui.Enabled
