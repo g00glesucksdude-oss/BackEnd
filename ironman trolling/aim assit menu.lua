@@ -2,13 +2,23 @@
 repeat task.wait() until getgenv().ExunysDeveloperAimbot
 local AimbotData = getgenv().ExunysDeveloperAimbot
 
--- 1. GUI Root
+-- 1. RAINBOW LOOP LOGIC (Handles the visual cycle)
+task.spawn(function()
+    while task.wait() do
+        if AimbotData.FOVSettings.RainbowColor then
+            local Hue = tick() % 5 / 5
+            AimbotData.FOVSettings.Color = Color3.fromHSV(Hue, 1, 1)
+        end
+    end
+end)
+
+-- 2. GUI Root
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "Exunys_V3_Ultimate_Panel"
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.ResetOnSpawn = false
 
--- 2. Main Frame
+-- 3. Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 250, 0, 450)
 MainFrame.Position = UDim2.new(0.5, -125, 0.4, 0)
@@ -18,7 +28,7 @@ MainFrame.Active = true
 MainFrame.Draggable = true 
 MainFrame.Parent = ScreenGui
 
--- 3. Header & Minimize
+-- 4. Header & Minimize
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 30)
 Header.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -54,7 +64,7 @@ UIList.Parent = ContentFrame
 UIList.Padding = UDim.new(0, 5)
 UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- 4. Builder Logic
+-- 5. Builder Logic
 local function CreateLabel(text)
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, 0, 0, 25)
@@ -115,7 +125,10 @@ local function CreateAdjuster(name, tableRef, key, step, min)
     end)
 end
 
--- 5. Configs
+-- 6. Config Sections
+CreateLabel("MAIN")
+CreateToggle("Master Enabled", AimbotData.Settings, "Enabled")
+
 CreateLabel("CHECKS")
 CreateToggle("Wall Check", AimbotData.Settings, "WallCheck")
 CreateToggle("Team Check", AimbotData.Settings, "TeamCheck")
@@ -131,10 +144,10 @@ CreateToggle("Show FOV", AimbotData.FOVSettings, "Visible")
 CreateToggle("Filled FOV", AimbotData.FOVSettings, "Filled")
 CreateAdjuster("FOV Radius", AimbotData.FOVSettings, "Radius", 5, 0)
 CreateAdjuster("FOV Transparency", AimbotData.FOVSettings, "Transparency", 0.1, 0)
+CreateAdjuster("FOV Sides", AimbotData.FOVSettings, "NumSides", 1, 3)
+CreateToggle("Rainbow FOV", AimbotData.FOVSettings, "RainbowColor")
 
 CreateLabel("DANGER ZONE")
-
--- 6. CORRECTED OFF LOGIC
 local OffBtn = Instance.new("TextButton")
 OffBtn.Size = UDim2.new(0, 220, 0, 40)
 OffBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
@@ -144,18 +157,16 @@ OffBtn.Font = Enum.Font.SourceSansBold
 OffBtn.Parent = ContentFrame
 
 OffBtn.MouseButton1Click:Connect(function()
-    -- Logic direct from source: Unload() cleans connections and UI
     if AimbotData.Unload then
         AimbotData:Unload() 
     else
-        -- Backup logic if Unload isn't reachable
         AimbotData.Settings.Enabled = false
         AimbotData.FOVSettings.Visible = false
     end
     ScreenGui:Destroy()
 end)
 
--- Minimize Logic
+-- 7. Minimize/Toggle Logic
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
@@ -164,7 +175,6 @@ MinBtn.MouseButton1Click:Connect(function()
     MinBtn.Text = isMinimized and "+" or "-"
 end)
 
--- 7. P Toggle
 game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
     if not processed and input.KeyCode == Enum.KeyCode.P then
         ScreenGui.Enabled = not ScreenGui.Enabled
