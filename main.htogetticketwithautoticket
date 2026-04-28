@@ -1,0 +1,86 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local ticketsFolder = workspace:WaitForChild("Game"):WaitForChild("Effects"):WaitForChild("Tickets")
+local player = Players.LocalPlayer
+
+local autoTeleportEnabled = false
+local lastTeleportTime = 0
+local TELEPORT_INTERVAL = 4
+
+-- Core Teleport Logic
+local function teleportToRandomTicket()
+    local character = player.Character
+    if not character then return end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local tickets = ticketsFolder:GetChildren()
+    if #tickets == 0 then return end
+
+    local randomTicket = tickets[math.random(1, #tickets)]
+    local targetCFrame
+
+    if randomTicket:IsA("BasePart") then
+        targetCFrame = randomTicket.CFrame
+    elseif randomTicket:IsA("Model") then
+        targetCFrame = randomTicket:GetPivot()
+    end
+
+    if targetCFrame then
+        hrp.CFrame = targetCFrame + Vector3.new(0, 5, 0)
+    end
+end
+
+-- UI Creation Logic
+local function createToggleUI()
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    -- Clean up existing UI if it exists
+    local existing = playerGui:FindFirstChild("TeleportGui")
+    if existing then existing:Destroy() end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "TeleportGui"
+    screenGui.ResetOnSpawn = false -- Ensures it stays, but we handle recreation via CharacterAdded for safety
+    screenGui.Parent = playerGui
+
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 200, 0, 50)
+    button.Position = UDim2.new(0.5, -100, 0.1, 0)
+    button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    button.Text = "Auto-Teleport: OFF"
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.Parent = screenGui
+
+    button.MouseButton1Click:Connect(function()
+        autoTeleportEnabled = not autoTeleportEnabled
+        button.Text = autoTeleportEnabled and "Auto-Teleport: ON" or "Auto-Teleport: OFF"
+        button.BackgroundColor3 = autoTeleportEnabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+    end)
+end
+
+-- Automation Loop
+RunService.Heartbeat:Connect(function()
+    if autoTeleportEnabled then
+        local currentTime = tick()
+        if currentTime - lastTeleportTime >= TELEPORT_INTERVAL then
+            lastTeleportTime = currentTime
+            teleportToRandomTicket()
+        end
+    end
+end)
+
+-- Initialization & Persistence
+player.CharacterAdded:Connect(createToggleUI)
+if player.Character then createToggleUI() end -- Run for the first time
+
+-- Manual Keybind (H)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.H then
+        teleportToRandomTicket()
+    end
+end)
